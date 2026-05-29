@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#7c6cff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Budžet">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%237c6cff'/%3E%3Ctext x='50' y='68' text-anchor='middle' font-size='50' fill='white'%3E💰%3C/text%3E%3C/svg%3E">
+<title>Moj Budžet</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,sans-serif;background:#0a0a1a;color:#fff}
+  #app{max-width:450px;margin:0 auto;min-height:100vh;padding-bottom:80px}
+  .card{background:rgba(20,20,40,0.9);border-radius:24px;padding:20px;margin:12px}
+  .balance{font-size:36px;font-weight:800;background:linear-gradient(135deg,#a78bfa,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .btn{background:#7c6cff;border:none;border-radius:16px;padding:12px;color:#fff;font-weight:600;cursor:pointer;width:100%}
+  .nav-bar{position:fixed;bottom:0;left:0;right:0;max-width:450px;margin:0 auto;display:flex;justify-content:space-around;background:rgba(10,10,26,0.95);padding:10px 16px 20px}
+  .nav-btn{background:transparent;border:none;color:#6b7a99;padding:8px 12px;cursor:pointer}
+  .nav-btn.active{color:#a78bfa}
+  .tx-item{display:flex;justify-content:space-between;align-items:center;padding:12px;background:rgba(30,30,55,0.6);border-radius:16px;margin-bottom:8px}
+  .overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:1000;display:none;align-items:flex-end}
+  .overlay.show{display:flex}
+  .sheet{background:#12122a;border-radius:28px 28px 0 0;width:100%;padding:20px;max-height:80vh}
+  input{background:rgba(30,30,55,0.9);border:1px solid #7c6cff;border-radius:14px;padding:12px;color:#fff;width:100%;margin:8px 0}
+  .cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+  .cat-btn{padding:10px;background:rgba(30,30,55,0.8);border-radius:16px;text-align:center;cursor:pointer}
+  .cat-btn.selected{border:1px solid #7c6cff}
+  .flex{display:flex;gap:12px}
+  .flex-between{display:flex;justify-content:space-between;align-items:center}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="page-home">
+    <div class="card" style="margin-top:20px">
+      <div style="font-size:13px;color:#6b7a99">UKUPAN SALDO</div>
+      <div class="balance" id="balance">0 RSD</div>
+      <div class="flex" style="margin-top:20px">
+        <div style="flex:1;background:rgba(34,211,238,0.1);border-radius:16px;padding:12px;text-align:center" onclick="openAdd('income')">
+          <div style="color:#22d3ee">📈 PRIHODI</div>
+          <div id="incomeTotal" style="font-size:20px;font-weight:700">0</div>
+        </div>
+        <div style="flex:1;background:rgba(244,114,182,0.1);border-radius:16px;padding:12px;text-align:center" onclick="openAdd('expense')">
+          <div style="color:#f472b6">📉 RASHODI</div>
+          <div id="expenseTotal" style="font-size:20px;font-weight:700">0</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="flex-between"><span>📋 Nedavne transakcije</span><span style="color:#a78bfa" onclick="showPage('transactions')">Sve →</span></div>
+      <div id="recentList" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div id="page-transactions" style="display:none">
+    <div class="card"><div class="flex-between"><span style="font-weight:700">📋 Sve transakcije</span><span style="color:#a78bfa" onclick="showPage('home')">← Nazad</span></div></div>
+    <div class="card" id="txList"></div>
+  </div>
+
+  <div id="page-stats" style="display:none">
+    <div class="card"><div class="flex-between"><span style="font-weight:700">📊 Statistika</span><span style="color:#a78bfa" onclick="showPage('home')">← Nazad</span></div></div>
+    <div class="card" id="statsContent"></div>
+  </div>
+
+  <div class="nav-bar">
+    <button class="nav-btn active" onclick="showPage('home')">🏠 Početna</button>
+    <button class="nav-btn" onclick="showPage('transactions')">💳 Transakcije</button>
+    <button class="nav-btn" onclick="showPage('stats')">📊 Statistika</button>
+  </div>
+</div>
+
+<div id="addOverlay" class="overlay"><div class="sheet"><div class="flex-between"><span id="addTitle">➕ Novi rashod</span><button onclick="closeOverlay()" style="background:none;border:none;color:#fff;font-size:24px">✕</button></div>
+<input type="number" id="amount" placeholder="Iznos u RSD">
+<div class="cat-grid" id="catGrid"></div>
+<input type="text" id="desc" placeholder="Opis">
+<button class="btn" onclick="saveTx()">💾 Sačuvaj</button></div></div>
+
+<script>
+// KATEGORIJE
+const CATS = [
+  {id:'food',name:'Hrana',emoji:'🍔'},
+  {id:'fuel',name:'Gorivo',emoji:'⛽'},
+  {id:'bills',name:'Računi',emoji:'📄'},
+  {id:'fun',name:'Zabava',emoji:'🎮'},
+  {id:'shop',name:'Kupovina',emoji:'🛍️'},
+  {id:'health',name:'Zdravlje',emoji:'❤️'},
+  {id:'salary',name:'Plata',emoji:'💼'},
+];
+
+// PODACI
+let transactions = [];
+let addType = 'expense';
+let selectedCat = 'food';
+
+// UCITAVANJE
+function loadData() {
+  try {
+    const saved = localStorage.getItem('budget_data');
+    if(saved) transactions = JSON.parse(saved);
+  } catch(e) {}
+  if(transactions.length === 0) {
+    const today = new Date().toISOString().slice(0,10);
+    transactions = [
+      {id:1, type:'income', amount:120000, category:'salary', desc:'Plata', date:today},
+      {id:2, type:'expense', amount:2500, category:'food', desc:'Maxi', date:today},
+      {id:3, type:'expense', amount:1800, category:'fuel', desc:'Gorivo', date:today},
+    ];
+  }
+}
+
+function saveData() {
+  localStorage.setItem('budget_data', JSON.stringify(transactions));
+}
+
+// HELPERS
+function fmt(n) { return Number(n).toLocaleString('sr-RS') + ' RSD'; }
+function fmtNum(n) { return Number(n).toLocaleString('sr-RS'); }
+
+function getTotals() {
+  let inc = 0, exp = 0;
+  transactions.forEach(t => {
+    if(t.type === 'income') inc += t.amount;
+    else exp += t.amount;
+  });
+  return {income:inc, expense:exp, balance:inc-exp};
+}
+
+// RENDER
+function renderHome() {
+  const {income, expense, balance} = getTotals();
+  document.getElementById('balance').innerHTML = fmt(balance);
+  document.getElementById('incomeTotal').innerHTML = fmtNum(income);
+  document.getElementById('expenseTotal').innerHTML = fmtNum(expense);
+  
+  const recent = [...transactions].sort((a,b) => b.id - a.id).slice(0,5);
+  const container = document.getElementById('recentList');
+  if(recent.length === 0) container.innerHTML = '<div style="text-align:center;color:#6b7a99">Nema transakcija</div>';
+  else container.innerHTML = recent.map(t => renderTxItem(t)).join('');
+}
+
+function renderTxItem(tx) {
+  const cat = CATS.find(c => c.id === tx.category) || CATS[0];
+  const sign = tx.type === 'income' ? '+' : '-';
+  const color = tx.type === 'income' ? '#22d3ee' : '#f472b6';
+  return `<div class="tx-item">
+    <div><span style="font-size:20px">${cat.emoji}</span><div style="font-size:11px;color:#6b7a99">${tx.date}</div></div>
+    <div style="flex:1;margin-left:12px"><div>${tx.desc}</div><div style="font-size:11px;color:#6b7a99">${cat.name}</div></div>
+    <div style="color:${color};font-weight:700">${sign} ${fmt(tx.amount)}</div>
+    <button onclick="deleteTx(${tx.id})" style="background:none;border:none;color:#6b7a99;font-size:18px">🗑️</button>
+  </div>`;
+}
+
+function renderTransactions() {
+  const sorted = [...transactions].sort((a,b) => b.id - a.id);
+  const container = document.getElementById('txList');
+  if(sorted.length === 0) container.innerHTML = '<div style="text-align:center;color:#6b7a99;padding:40px">Nema transakcija</div>';
+  else container.innerHTML = sorted.map(t => renderTxItem(t)).join('');
+}
+
+function renderStats() {
+  const {income, expense} = getTotals();
+  const expByCat = CATS.map(cat => ({
+    ...cat,
+    total: transactions.filter(t => t.type === 'expense' && t.category === cat.id).reduce((s,t) => s + t.amount, 0)
+  })).filter(c => c.total > 0);
+  const totalExp = expByCat.reduce((s,c) => s + c.total, 0);
+  
+  let html = `<div style="margin-bottom:16px"><div style="color:#6b7a99">Ukupni prihodi</div><div style="font-size:24px;font-weight:700;color:#22d3ee">${fmt(income)}</div></div>
+    <div><div style="color:#6b7a99">Ukupni rashodi</div><div style="font-size:24px;font-weight:700;color:#f472b6">${fmt(expense)}</div></div>`;
+  
+  if(expByCat.length > 0) {
+    html += `<div style="margin-top:20px"><div style="font-weight:700">📊 Po kategorijama</div>`;
+    expByCat.forEach(cat => {
+      const percent = totalExp > 0 ? Math.round((cat.total / totalExp) * 100) : 0;
+      html += `<div style="margin-top:12px"><div class="flex-between"><span>${cat.emoji} ${cat.name}</span><span>${fmt(cat.total)} (${percent}%)</span></div>
+        <div style="background:rgba(255,255,255,0.1);height:6px;border-radius:6px;margin-top:4px"><div style="width:${percent}%;height:100%;background:#7c6cff;border-radius:6px"></div></div></div>`;
+    });
+    html += `</div>`;
+  }
+  document.getElementById('statsContent').innerHTML = html;
+}
+
+function deleteTx(id) {
+  transactions = transactions.filter(t => t.id !== id);
+  saveData();
+  renderHome();
+  if(document.getElementById('page-transactions').style.display !== 'none') renderTransactions();
+  if(document.getElementById('page-stats').style.display !== 'none') renderStats();
+}
+
+// NAVIGACIJA
+function showPage(page) {
+  document.getElementById('page-home').style.display = 'none';
+  document.getElementById('page-transactions').style.display = 'none';
+  document.getElementById('page-stats').style.display = 'none';
+  document.getElementById('page-' + page).style.display = 'block';
+  
+  document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+  if(page === 'home') document.querySelector('.nav-btn:first-child').classList.add('active');
+  if(page === 'transactions') document.querySelector('.nav-btn:nth-child(2)').classList.add('active');
+  if(page === 'stats') document.querySelector('.nav-btn:nth-child(3)').classList.add('active');
+  
+  if(page === 'transactions') renderTransactions();
+  if(page === 'stats') renderStats();
+}
+
+// DODAVANJE TRANSAKCIJE
+function openAdd(type) {
+  addType = type;
+  selectedCat = type === 'income' ? 'salary' : 'food';
+  document.getElementById('addTitle').innerHTML = type === 'expense' ? '➕ Novi rashod' : '💰 Novi prihod';
+  document.getElementById('amount').value = '';
+  document.getElementById('desc').value = '';
+  renderCatGrid();
+  document.getElementById('addOverlay').classList.add('show');
+}
+
+function renderCatGrid() {
+  const cats = addType === 'expense' ? CATS.filter(c => c.id !== 'salary') : CATS.filter(c => c.id === 'salary');
+  document.getElementById('catGrid').innerHTML = cats.map(cat => `
+    <div class="cat-btn ${selectedCat === cat.id ? 'selected' : ''}" onclick="selectCat('${cat.id}')">
+      <div style="font-size:24px">${cat.emoji}</div>
+      <div style="font-size:11px">${cat.name}</div>
+    </div>
+  `).join('');
+}
+
+function selectCat(id) { selectedCat = id; renderCatGrid(); }
+
+function saveTx() {
+  const amount = parseFloat(document.getElementById('amount').value);
+  if(!amount || amount <= 0) { alert('Unesite iznos'); return; }
+  const desc = document.getElementById('desc').value.trim() || (addType === 'expense' ? 'Trošak' : 'Prihod');
+  const tx = {
+    id: Date.now(),
+    type: addType,
+    amount: amount,
+    category: selectedCat,
+    desc: desc,
+    date: new Date().toISOString().slice(0,10)
+  };
+  transactions.unshift(tx);
+  saveData();
+  closeOverlay();
+  renderHome();
+  if(document.getElementById('page-transactions').style.display !== 'none') renderTransactions();
+  if(document.getElementById('page-stats').style.display !== 'none') renderStats();
+}
+
+function closeOverlay() { document.getElementById('addOverlay').classList.remove('show'); }
+
+// SERVICE WORKER & PWA
+if('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(console.log);
+}
+
+// INIT
+loadData();
+renderHome();
+showPage('home');
+</script>
+</body>
+</html>
